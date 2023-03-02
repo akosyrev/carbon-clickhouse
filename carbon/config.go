@@ -88,13 +88,16 @@ type pprofConfig struct {
 }
 
 type dataConfig struct {
-	Path         string                    `toml:"path"`
-	ChunkMaxSize config.Size               `toml:"chunk-max-size"`
-	FileInterval *config.Duration          `toml:"chunk-interval"`
-	AutoInterval *config.ChunkAutoInterval `toml:"chunk-auto-interval"`
-	CompAlgo     *config.Compression       `toml:"compression"`
-	CompLevel    int                       `toml:"compression-level"`
-	UTCDate      bool                      `toml:"utc-date"`
+	Path            string                    `toml:"path"`
+	ChunkMaxSize    config.Size               `toml:"chunk-max-size"`
+	FileInterval    *config.Duration          `toml:"chunk-interval"`
+	AutoInterval    *config.ChunkAutoInterval `toml:"chunk-auto-interval"`
+	CompAlgo        *config.Compression       `toml:"compression"`
+	CompLevel       int                       `toml:"compression-level"`
+	UTCDate         bool                      `toml:"utc-date"`
+	HardlinksPath   string                    `toml:"hardlinks-path"`
+	HardlinksSuffix string                    `toml:"hardlinks-suffix"`
+	ExtFilesMask    string                    `toml:"ext-files-mask"`
 }
 
 // Config ...
@@ -131,9 +134,12 @@ func NewConfig() *Config {
 			FileInterval: &config.Duration{
 				Duration: time.Second,
 			},
-			AutoInterval: config.NewChunkAutoInterval(),
-			CompAlgo:     &config.Compression{CompAlgo: config.CompAlgoNone},
-			CompLevel:    0,
+			AutoInterval:    config.NewChunkAutoInterval(),
+			CompAlgo:        &config.Compression{CompAlgo: config.CompAlgoNone},
+			CompLevel:       0,
+			HardlinksPath:   "",
+			HardlinksSuffix: "",
+			ExtFilesMask:    "",
 		},
 		Udp: udpConfig{
 			Listen:         ":2003",

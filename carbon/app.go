@@ -213,6 +213,9 @@ func (app *App) Start() (err error) {
 		conf.Data.CompLevel,
 		uploaders,
 		nil,
+		conf.Data.HardlinksPath,
+		conf.Data.HardlinksSuffix,
+		conf.Data.ExtFilesMask,
 	)
 	app.Writer.Start()
 	/* WRITER end */
