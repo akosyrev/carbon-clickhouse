@@ -59,6 +59,8 @@ func New(path string, name string, config *Config) (Uploader, error) {
 		res = NewTagged(u)
 	case "index":
 		res = NewIndex(u)
+	case "index-dump":
+		res = NewIndexDump(u)
 	default:
 		return nil, fmt.Errorf("unknown uploader type %#v", c.Type)
 	}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,23 +35,38 @@ type Writer struct {
 		unhandled     uint32
 		chunkInterval uint32
 	}
-	inputChan    chan *RowBinary.WriteBuffer
-	path         string
-	maxSize      int64
-	autoInterval *config.ChunkAutoInterval
-	compAlgo     config.CompAlgo
-	compLevel    int
-	lz4Header    lz4.Header
-	inProgress   map[string]bool // current writing files
-	logger       *zap.Logger
-	uploaders    []string
-	onFinish     func(string) error
+	inputChan       chan *RowBinary.WriteBuffer
+	path            string
+	maxSize         int64
+	autoInterval    *config.ChunkAutoInterval
+	compAlgo        config.CompAlgo
+	compLevel       int
+	lz4Header       lz4.Header
+	inProgress      map[string]bool // current writing files
+	logger          *zap.Logger
+	uploaders       []string
+	onFinish        func(string) error
+	hardlinksPath   string
+	hardlinksSuffix string
+	extFilesMask    string
 }
 
-func New(in chan *RowBinary.WriteBuffer, path string, switchSize int64, autoInterval *config.ChunkAutoInterval, compAlgo config.CompAlgo, compLevel int, uploaders []string, onFinish func(string) error) *Writer {
+func New(in chan *RowBinary.WriteBuffer, path string, switchSize int64, autoInterval *config.ChunkAutoInterval, compAlgo config.CompAlgo, compLevel int, uploaders []string, onFinish func(string) error, hardlinksPath string, hardlinksSuffix string, extFilesMask string) *Writer {
 	finishCallback := func(fn string) error {
 		if err := Link(fn, uploaders); err != nil {
 			return err
+		}
+
+		if !strings.EqualFold(extFilesMask, "") {
+			if err := LinkExternal(fn, uploaders, extFilesMask); err != nil {
+				return err
+			}
+		}
+
+		if !strings.EqualFold(hardlinksPath, "") {
+			if err := HardLink(fn, hardlinksPath, hardlinksSuffix); err != nil {
+				return err
+			}
 		}
 
 		if onFinish != nil {
@@ -61,16 +77,19 @@ func New(in chan *RowBinary.WriteBuffer, path string, switchSize int64, autoInte
 	}
 
 	wr := &Writer{
-		inputChan:    in,
-		path:         path,
-		maxSize:      switchSize,
-		autoInterval: autoInterval,
-		compAlgo:     compAlgo,
-		compLevel:    compLevel,
-		inProgress:   make(map[string]bool),
-		logger:       zapwriter.Logger("writer"),
-		uploaders:    uploaders,
-		onFinish:     finishCallback,
+		inputChan:       in,
+		path:            path,
+		maxSize:         switchSize,
+		autoInterval:    autoInterval,
+		compAlgo:        compAlgo,
+		compLevel:       compLevel,
+		inProgress:      make(map[string]bool),
+		logger:          zapwriter.Logger("writer"),
+		uploaders:       uploaders,
+		onFinish:        finishCallback,
+		hardlinksPath:   hardlinksPath,
+		hardlinksSuffix: hardlinksSuffix,
+		extFilesMask:    extFilesMask,
 	}
 
 	switch compAlgo {
@@ -87,8 +106,14 @@ func New(in chan *RowBinary.WriteBuffer, path string, switchSize int64, autoInte
 func (w *Writer) Start() error {
 	return w.StartFunc(func() error {
 		// link pre-existing files
+		// fmt.Println("***************************** Link all on start")
 		if err := w.LinkAll(); err != nil {
 			return err
+		}
+		if !strings.EqualFold(w.hardlinksPath, "") {
+			if err := w.HardLinkAll(); err != nil {
+				return err
+			}
 		}
 		if err := w.Cleanup(); err != nil {
 			return err
